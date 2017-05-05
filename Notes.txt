@@ -1,0 +1,25 @@
+the 2 cam cals don't seem to matter
+v prj38 chl6 notes 
+1  good soso
+2  crazy fit fixed with roi_warper. bad end detection fixed by *dist by xmppx
+3  good bad  challenge fail at 5sec
+4
+
+direction_threshold, magnitude_threshold:
+tried https://github.com/georgesung/advanced_lane_detection 's params, not good results on test imgs
+
+#v: 
+#test1.jpg: 140 bad, 145 borderline ok
+#test4.jpg: 145: good, 150-153: bit more R btr, 154-155: need more R
+#test5.jpg: 145: too R, 150-153: bit+ more L btr, 154: bit more L btr, 155: perfect
+#video: 122 ok
+   
+_rgb_yellow best if btw:
+rlow=80, glow=80, bmax=77
+rlow=82, glow=82, bmax=76
+but still not as good as s of hls or v of hsv
+
+white_filter in hsv did not work well
+
+combined[((yel==1)|(wht==1))] = 1  is blank, need to be:
+combined = yel+wht
