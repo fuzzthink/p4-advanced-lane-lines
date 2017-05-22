@@ -1,6 +1,6 @@
 import cv2, os, glob
-from camera import undistort
-from calibrate import cal_imgs_dir, cal_imgs_glob, output_dir
+from lib.camera import undistort
+from lib.calibrate import cal_imgs_dir, cal_imgs_glob, output_dir
 
 output_path = output_dir+'calib_undistorted/'
 if not os.path.exists(output_path):

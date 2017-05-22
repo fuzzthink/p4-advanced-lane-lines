@@ -1,15 +1,14 @@
 import numpy as np
-import cv2, os, sys
+import cv2
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from glob import glob
-from util import Obj
-from np_util import scale_255
+from types import SimpleNamespace as SNS
+from lib.np_util import scale_255
+from lib import draw
 
 L, R = 0, 1
 LR = (L, R)
 Lo, Hi = 0, 1
-drawRect = cv2.rectangle
 
 def roi_warper(img, lane=None, debug=False):
     ''' Returns birdseyes view warped image from undistored first person view img.
@@ -40,8 +39,8 @@ def roi_warper(img, lane=None, debug=False):
         return warped
 
 def filtered_dict(img, 
-    low=Obj({'h':15, 'vx':20, 'vx_yel':10, 'sx':10, 's':75, 'v':175}), #bad @4sec challenge if s=80,v=180
-    high=Obj({'h':35,'vx':120,'vx_yel':60, 'sx':100})):
+    low =SNS(h=15, vx=20, vx_yel=10, sx=10, s=75, v=175), #bad @4sec challenge if s=80,v=180
+    high=SNS(h=35, vx=120,vx_yel=60, sx=100)):
     ''' 
     Returns dict of 7 filtered channels on img of:
     'yel': yellow filter via h channel
@@ -103,46 +102,47 @@ def filteredPixels(filtereds):
     ''' Returns nonzero pixels object for filters in filtereds in x and y dims.
     filtereds: warped filters dict (see filtered_dict() for list of filters)
     '''
-    o = Obj({'x':{}, 'y':{}})
+    o = SNS(x={}, y={})
     for fltr in filtereds:
         nonzero = filtereds[fltr].nonzero()
         o.x[fltr] = np.array(nonzero[1])
         o.y[fltr] = np.array(nonzero[0])
     return o
 
-printThresholds = True
+# printThresholds = True
 def xyfound(roi, filtereds, filteredPxs, img, windows=True,
     minpct={'cnt':.011, 'white':.011, 'yel':.032},
     maxpct={'cnt':1.1, 'white2':.88, 'white2InWins':.22, 'white':.55, 'whiteInWins':.055},
     minpxs=None, maxpxs=None):
     ''' Returns tuple of (x-coords, y-coords, found, filters-used) of lane detection
+
     roi: ROI of dict of different filtered pixels
     filtereds: warped filters dict (see filtered_dict() for list of filters)
     filteredPxs: filteredPixels() result
     windows: full detection via windows or not
     minpct, maxpct: min/max pixels % of total image pixels thresholds dict
-    minpxs, maxpxs: min/max pixels thresholds dict, overrides minpct/maxpct if given
+    minpxs, maxpxs: min/max pixels thresholds dict, overrides minpct/maxpct
     '''
-    imgPixelsCnt = img.shape[0]*img.shape[1]
+    nPixels = img.shape[0]*img.shape[1]
+
+    # calc min and max pxs from pct params
     if not minpxs:
         minpxs = {}
         for k,v in minpct.items():
-            minpxs[k] = int(v*.01*imgPixelsCnt)
-    minpx = Obj(minpxs)
+            minpxs[k] = int(v*.01*nPixels)
+    minpx = SNS(**minpxs)
 
     if not maxpxs:
         maxpxs = {}
         for k,v in maxpct.items():
-            maxpxs[k] = int(v*.01*imgPixelsCnt)
-    maxpx = Obj(maxpxs)
+            maxpxs[k] = int(v*.01*nPixels)
+    maxpx = SNS(**maxpxs)
 
-    global printThresholds
-    if printThresholds:
-        print('Minimum Thresholds used for lane detection:')
-        print(minpxs)
-        print('Maximum Thresholds used for lane detection:')
-        print(maxpxs)
-    printThresholds = False
+    # global printThresholds
+    # if printThresholds:
+    #     print('Min Thresholds used:', minpxs)
+    #     print('Max Thresholds used:', maxpxs)
+    # printThresholds = False
 
     pxCnt, mean, stdev = {}, {}, {}
     for fltr in filtereds: 
@@ -154,7 +154,7 @@ def xyfound(roi, filtereds, filteredPxs, img, windows=True,
         stdev[fltr] = np.std(filteredPxs.x[fltr][roi[fltr]])
     
     filters = pxCnt.keys()
-    pxCnt = Obj(pxCnt)
+    pxCnt = SNS(**pxCnt)
 
     if windows:
         used = [c for c in filters if stdev[c]<35]
@@ -201,11 +201,11 @@ def pxsObj():
     y:  array of L/R array of pixels in y coordinates
     found: array of L/R line found boolean
     '''
-    return Obj({
-        'x': [[], []], 
-        'y': [[], []], 
-        'found': [False, False]
-    })
+    return SNS(
+        x = [[], []], 
+        y = [[], []], 
+        found = [False, False]
+    )
 
 def pxObj():
     ''' Returns object of:
@@ -213,11 +213,11 @@ def pxObj():
     y:  array of L/R pixels in y coordinates
     found: array of L/R line found boolean
     '''
-    return Obj({
-        'x': [None, None],
-        'y': [None, None],
-        'found': [False, False]
-    })
+    return SNS(
+        x = [None, None],
+        y = [None, None],
+        found = [False, False]
+    )
 
 def filteredBoundsPxObj(wb, filtereds, filteredPxs, img):
     ''' Returns pixObj within window boundaries
@@ -276,9 +276,14 @@ class LaneDetect:
             yel = np.dstack((warped['yelPos'], warped['yelNeg'], warped['yel']))
         return warped, wht, yel
 
-    def setSideWin(self, win, x, y, ch=2, val=255):
-        if self.showSideWindows:
-            win[y,x,ch] = val
+    def init_dbg_wins(self, img1, img2):
+        self.dbg_wins = [np.copy(img1)*255]
+        self.dbg_wins.append(np.copy(img2)*255)
+        self.dbg_wins.append(np.zeros_like(self.dbg_wins[0]))
+
+    # def setSideWin(self, win, x, y, ch=2, val=255):
+    #     if self.showSideWindows:
+    #         win[y,x,ch] = val
 
     def findlinepixs_fast(self, coef, margin=80):
         ''' Find lane lines with mean and stddev via 1 window for L and R sides.
@@ -288,11 +293,7 @@ class LaneDetect:
         filtereds, wht, yel = self.warpedChannels(filtered_dict(self.img))
         pxCoords = pxsObj()
         pixels = filteredPixels(filtereds) 
-        
-        if self.showSideWindows:
-            self.vis1 = np.copy(wht)*255
-            self.vis2 = np.copy(yel)*255
-            self.vis3 = np.zeros_like(self.vis1)
+        self.init_dbg_wins(wht, yel)
 
         for side in LR:
             roi={}
@@ -314,8 +315,8 @@ class LaneDetect:
                 xyfound(roi, filtereds, pixels, self.img, windows=False) 
                 
             if pxCoords.found[side]:
-                self.setSideWin(self.vis3, pxCoords.x[side], pxCoords.y[side])
-
+                self.dbg_wins[2][pxCoords.y[side], pxCoords.x[side], 2] = 255
+                # self.setSideWin(self.vis3, pxCoords.x[side], pxCoords.y[side])
         self.pxCoords = pxCoords
 
     def findlinepixs(self, nwindows=10):
@@ -323,6 +324,7 @@ class LaneDetect:
         Sets self.pxCoords to pxsObj() of result
         '''
         filtereds, wht, yel = self.warpedChannels(filtered_dict(self.img))
+        self.init_dbg_wins(wht, yel)
 
         win_ht = self.img_ht//nwindows
         qtr_wd = self.img_wd//4
@@ -340,21 +342,16 @@ class LaneDetect:
         momentum = [0, 0]
         last_update = [0, 0]
 
-        if self.showSideWindows:
-            self.vis1 = np.copy(wht)*255
-            self.vis2 = np.copy(yel)*255
-            self.vis3 = np.zeros_like(self.vis1)
-
         # Step through the windows one by one
         for i in range(nwindows):
 
             # window boundaries
-            wb = Obj({
-                'x0': [int(x_mean[side] - margin[side]) for side in LR],
-                'x1': [int(x_mean[side] + margin[side]) for side in LR],
-                'y0': self.img_ht - (i+1)*win_ht,
-                'y1': self.img_ht - i*win_ht,
-            })
+            wb = SNS(
+                x0 = [int(x_mean[side] - margin[side]) for side in LR],
+                x1 = [int(x_mean[side] + margin[side]) for side in LR],
+                y0 = self.img_ht - (i+1)*win_ht,
+                y1 = self.img_ht - i*win_ht,
+            )
             px, used = filteredBoundsPxObj(wb, filtereds, pixels, self.img)
 
             if noLaneFound(lanes_gap, x_mean, self.img_wd):
@@ -383,16 +380,18 @@ class LaneDetect:
                     prvx_mean[side] = x_mean[side]
                 
                 # Draw the windows on the visualization image
-                if self.showSideWindows:
-                    drawRect(self.vis1, (wb.x0[side],wb.y0), (wb.x1[side],wb.y1), (0,255,side*255), 2)  
-                    drawRect(self.vis2, (wb.x0[side],wb.y0), (wb.x1[side],wb.y1), (0,255,side*255), 2) 
-                    # self.vis3[px.y[side], px.x[side], side] = 255
-                    self.setSideWin(self.vis3, px.x[side], px.y[side])
-                    if px.found[side]:
-                        txt = '%d'%x_mean[side]
-                        txtpos = x_mean[side]-130 if len(txt)==3 else x_mean[side]-175
-                        cv2.putText(self.vis3, txt, (txtpos, wb.y0+win_ht-13), 
-                            font, fontsize, (0,255,255), txtwd, linetype)
+                draw.rect(self.dbg_wins[0], 
+                    ((wb.x0[side],wb.y0), (wb.x1[side],wb.y1)), (0,255,side*255))  
+                draw.rect(self.dbg_wins[1], 
+                    ((wb.x0[side],wb.y0), (wb.x1[side],wb.y1)), (0,255,side*255)) 
+                self.dbg_wins[2][px.y[side], px.x[side], 2] = 255
+                # self.setSideWin(self.vis3, px.x[side], px.y[side])
+
+                if px.found[side]:
+                    txt = '%d'%x_mean[side]
+                    txtpos = x_mean[side]-130 if len(txt)==3 else x_mean[side]-175
+                    cv2.putText(self.dbg_wins[2], txt, (txtpos, wb.y0+win_ht-13), 
+                        font, fontsize, (0,255,255), txtwd, linetype)
             
                 # decide window centers based on previous windows 
                 last_update[side] += 1

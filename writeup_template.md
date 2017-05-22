@@ -31,13 +31,13 @@ The goals / steps of this project are the following:
 ---
 ### Source Files 
 The python source files are:
-- `calibrate.py` - calibrate camera from images
-- `camera.py` - calibrated camera interface 
-- `test_camera.py` - runs `undistort` to calibration images
-- `np_util.py` - numpy, cv, etc. utils
-- `util.py` - python utils
-- `lane_detect.py` - detect lane lines in input image
-- `pipeline.py` - takes lane detection from lane_detect.py, run it through input video to produce annotated lane detection output video.
+- `lib/calibrate.py` - calibrate camera from images
+- `lib/camera.py` - calibrated camera interface 
+- `lib/test_camera.py` - runs `undistort` to calibration images
+- `lib/np_util.py` - numpy, cv, etc. utils
+- `lib/lane_detection.py` - detect lane lines in input image
+- `lib/pipeline.py` - lane detection pipeline
+- `run_video.py` - process video by running `pipeline` for each image in video
 
 
 ### Camera Calibration
