@@ -129,7 +129,7 @@ def pipeline(_img):
 
     for side in LR:
         if detect.found(side):
-            line[side].fit_curve(detect.pxCoords.x[side], detect.pxCoords.y[side])
+            line[side].fit_curve(detect.pxs.x[side], detect.pxs.y[side])
             line[side].found = True
         else:
             fail_detect[side] += 1
@@ -157,13 +157,11 @@ def pipeline(_img):
 
         fitmsg[side] = fitMsg(fit_vs_MA, fit_err)
         coef[side] = line[side].coef_MA
-        pts = np.array(np.vstack((line[side].fit_MA, _0_to_ht)).T, dtype=np.int32)
-        pts = pts.reshape((-1,1,2))
-        cv2.polylines(detect.dbg_wins[2], [pts], False, (0,255,0), thickness=10)
+
+        for fit,thick in [(line[side].fit_MA, 10), (line[side].fit, 3)]:
+            pts = np.array(np.vstack((fit, _0_to_ht)).T, dtype=np.int32).reshape((-1,1,2))
+            cv2.polylines(detect.dbg_wins[2], [pts], False, (0,255,0), thickness=thick)
         
-        pts = np.array(np.vstack((line[side].fit, _0_to_ht)).T, dtype=np.int32)
-        pts = pts.reshape((-1,1,2))
-        cv2.polylines(detect.dbg_wins[2], [pts], False, (255,0,0), thickness=2)
         line[side].set_center_and_curve_radius()
 
     radm = (line[L].curve_rad + line[R].curve_rad)/2
