@@ -254,14 +254,13 @@ linetype = cv2.LINE_AA
 txtwd = 3
 
 class LaneDetect:
-    def __init__(self, img, sideWindows=True):
+    def __init__(self, img):
         self.img = img
         self.img_ht = img.shape[0]
         self.img_wd = img.shape[1]
-        self.showSideWindows = sideWindows
 
     def found(self, side):
-        return self.pxCoords.found[side]
+        return self.pxsCoords.found[side]
 
     def warpedChannels(self, fdict, unwarp_wht_yel=False):
         ''' Returns warped fdict and white and yellow channels
@@ -281,17 +280,13 @@ class LaneDetect:
         self.dbg_wins.append(np.copy(img2)*255)
         self.dbg_wins.append(np.zeros_like(self.dbg_wins[0]))
 
-    # def setSideWin(self, win, x, y, ch=2, val=255):
-    #     if self.showSideWindows:
-    #         win[y,x,ch] = val
-
     def findlinepixs_fast(self, coef, margin=80):
         ''' Find lane lines with mean and stddev via 1 window for L and R sides.
-        Sets self.pxCoords to pxsObj() of result
+        Sets self.pxsCoords to pxsObj() of result
         coef: Array of L,R fitted line coefficients
         '''
         filtereds, wht, yel = self.warpedChannels(filtered_dict(self.img))
-        pxCoords = pxsObj()
+        pxsCoords = pxsObj()
         pixels = filteredPixels(filtereds) 
         self.init_dbg_wins(wht, yel)
 
@@ -311,17 +306,16 @@ class LaneDetect:
                  ))
                 )
 
-            pxCoords.x[side], pxCoords.y[side], pxCoords.found[side], used = \
+            pxsCoords.x[side], pxsCoords.y[side], pxsCoords.found[side], used = \
                 xyfound(roi, filtereds, pixels, self.img, windows=False) 
                 
-            if pxCoords.found[side]:
-                self.dbg_wins[2][pxCoords.y[side], pxCoords.x[side], 2] = 255
-                # self.setSideWin(self.vis3, pxCoords.x[side], pxCoords.y[side])
-        self.pxCoords = pxCoords
+            if pxsCoords.found[side]:
+                self.dbg_wins[2][pxsCoords.y[side], pxsCoords.x[side], 2] = 255
+        self.pxsCoords = pxsCoords
 
     def findlinepixs(self, nwindows=10):
         ''' Find lane lines with mean and stddev via sliding windows
-        Sets self.pxCoords to pxsObj() of result
+        Sets self.pxsCoords to pxsObj() of result
         '''
         filtereds, wht, yel = self.warpedChannels(filtered_dict(self.img))
         self.init_dbg_wins(wht, yel)
@@ -337,7 +331,7 @@ class LaneDetect:
         prvx = [None, None] # save prvx_mean if it's good
         
         pixels = filteredPixels(filtereds) 
-        pxCoords = pxsObj()
+        pxsCoords = pxsObj()
         lanes_gap = self.img_wd//2
         momentum = [0, 0]
         last_update = [0, 0]
@@ -375,8 +369,8 @@ class LaneDetect:
             for side in LR:
                 # Add good pixels to list
                 if px.found[side]:
-                    pxCoords.x[side].append(px.x[side])
-                    pxCoords.y[side].append(px.y[side])
+                    pxsCoords.x[side].append(px.x[side])
+                    pxsCoords.y[side].append(px.y[side])
                     prvx_mean[side] = x_mean[side]
                 
                 # Draw the windows on the visualization image
@@ -385,7 +379,6 @@ class LaneDetect:
                 draw.rect(self.dbg_wins[1], 
                     ((wb.x0[side],wb.y0), (wb.x1[side],wb.y1)), (0,255,side*255)) 
                 self.dbg_wins[2][px.y[side], px.x[side], 2] = 255
-                # self.setSideWin(self.vis3, px.x[side], px.y[side])
 
                 if px.found[side]:
                     txt = '%d'%x_mean[side]
@@ -405,14 +398,14 @@ class LaneDetect:
                 x_mean[side] += momentum[side]
 
         for side in LR:
-            if pxCoords.x[side]:
-                pxCoords.found[side] = True
-                pxCoords.x[side] = np.concatenate(pxCoords.x[side])
-                pxCoords.y[side] = np.concatenate(pxCoords.y[side])
+            if pxsCoords.x[side]:
+                pxsCoords.found[side] = True
+                pxsCoords.x[side] = np.concatenate(pxsCoords.x[side])
+                pxsCoords.y[side] = np.concatenate(pxsCoords.y[side])
             else:
-                pxCoords.x[side] = None
-                pxCoords.y[side] = None
-        self.pxCoords = pxCoords
+                pxsCoords.x[side] = None
+                pxsCoords.y[side] = None
+        self.pxsCoords = pxsCoords
 
     def plot_curve(self, coef, poly_order=2):
         ''' Returns fitted lane lines image 
