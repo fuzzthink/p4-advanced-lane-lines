@@ -20,7 +20,8 @@ def roi_warper(img, lane=None, debug=False):
     btm = ht * .97
     qtr = wd/4
     src = np.float32([(220,btm),(595,top),(685,top),(1060,btm)])
-    dst = np.float32([(qtr,ht),(qtr,-100),(3*qtr,-100),(3*qtr,ht)]) 
+    dst = np.float32([(qtr,ht),(qtr,0),(3*qtr,0),(3*qtr,ht)]) 
+    # dst = np.float32([(qtr,ht),(qtr,-100),(3*qtr,-100),(3*qtr,ht)]) 
 
     M = cv2.getPerspectiveTransform(src, dst) # Matrix for mapping src to dst
     warped = cv2.warpPerspective(img, M, (wd,ht), flags=cv2.INTER_NEAREST)
@@ -59,7 +60,7 @@ def filtered_dict(img,
     s_ch = hsv[:,:,1]
     v_ch = hsv[:,:,2]
 
-    # color thresholds
+    ## color thresholds
     d['yel'] = np.zeros_like(h_ch)
     d['yel'][(h_ch >= low.h) & (h_ch <= high.h) & (s_ch >= low.s)] = 1
 
@@ -69,7 +70,7 @@ def filtered_dict(img,
     d['white2'] = np.copy(d['white'])
     d['white2'][v_ch >= low.v+s_ch] = 1
 
-    # edge with sobel
+    ## edge with sobel
     vx_pos = cv2.Sobel(v_ch, cv2.CV_64F, 1, 0, ksize=3)
     vx_pos[vx_pos <= 0] = 0
     vx_pos = scale_255(vx_pos)
@@ -247,6 +248,20 @@ def noLaneFound(gap, x_mean, img_wd):
     minL, maxR = -55, img_wd+55
     return (gap < minGap) or (gap > maxGap) or (x_mean[L] < minL) or (x_mean[R] > maxR)
 
+def warpedChannels(fdict, lane=None, unwarp_wht_yel=False):
+    ''' Returns warped fdict and white and yellow channels
+    fdict: filtered channels of img dict, result of filtered_dict()
+    unwarped_wht_yel: True to have wht and yel outputs be unwarped versions
+    '''
+    warped = {fltr: roi_warper(img, lane) for fltr,img in fdict.items()}
+    if unwarp_wht_yel:
+        wht = np.dstack((fdict['posEdge'], fdict['negEdge'], fdict['white']))
+        yel = np.dstack((fdict['yelPos'], fdict['yelNeg'], fdict['yel']))
+    else:
+        wht = np.dstack((warped['posEdge'], warped['negEdge'], warped['white']))
+        yel = np.dstack((warped['yelPos'], warped['yelNeg'], warped['yel']))
+    return warped, wht, yel
+
 
 font = cv2.FONT_HERSHEY_SIMPLEX
 fontsize = 1.8
@@ -254,6 +269,8 @@ linetype = cv2.LINE_AA
 txtwd = 3
 
 class LaneDetect:
+    ''' Lane Detection and output side debug wins drawer
+    '''
     def __init__(self, img):
         self.img = img
         self.img_ht = img.shape[0]
@@ -262,36 +279,20 @@ class LaneDetect:
     def found(self, side):
         return self.pxs.found[side]
 
-    def found(self, side):
-        return self.pxs.found[side]
-        
-    def warpedChannels(self, fdict, unwarp_wht_yel=False):
-        ''' Returns warped fdict and white and yellow channels
-        fdict: filtered channels of img dict
-        '''
-        warped = {fltr: roi_warper(img, lane=self) for fltr,img in fdict.items()}
-        if unwarp_wht_yel:
-            wht = np.dstack((fdict['posEdge'], fdict['negEdge'], fdict['white']))
-            yel = np.dstack((fdict['yelPos'], fdict['yelNeg'], fdict['yel']))
-        else:
-            wht = np.dstack((warped['posEdge'], warped['negEdge'], warped['white']))
-            yel = np.dstack((warped['yelPos'], warped['yelNeg'], warped['yel']))
-        return warped, wht, yel
-
-    def init_dbg_wins(self, img1, img2):
-        self.dbg_wins = [np.copy(img1)*255]
-        self.dbg_wins.append(np.copy(img2)*255)
-        self.dbg_wins.append(np.zeros_like(self.dbg_wins[0]))
+    def init_side_wins(self, img1, img2):
+        self.side_wins = [np.copy(img1)*255]
+        self.side_wins.append(np.copy(img2)*255)
+        self.side_wins.append(np.zeros_like(self.side_wins[0]))
 
     def findlinepixs_fast(self, coef, margin=80):
         ''' Find lane lines with mean and stddev via 1 window for L and R sides.
-        Sets self.pxs to pxsObj() of result
+            Sets self.pxs to pxsObj() of result
         coef: Array of L,R fitted line coefficients
         '''
-        filtereds, wht, yel = self.warpedChannels(filtered_dict(self.img))
+        filtereds, wht, yel = warpedChannels(filtered_dict(self.img), self)
         pxs = pxsObj()
         pixels = filteredPixels(filtereds) 
-        self.init_dbg_wins(wht, yel)
+        self.init_side_wins(wht, yel)
 
         for side in LR:
             roi={}
@@ -313,15 +314,15 @@ class LaneDetect:
                 xyfound(roi, filtereds, pixels, self.img, windows=False) 
                 
             if pxs.found[side]:
-                self.dbg_wins[2][pxs.y[side], pxs.x[side], 2] = 255
+                self.side_wins[2][pxs.y[side], pxs.x[side], 2] = 255
         self.pxs = pxs
 
     def findlinepixs(self, nwindows=10):
         ''' Find lane lines with mean and stddev via sliding windows
-        Sets self.pxs to pxsObj() of result
+            Sets self.pxs to pxsObj() of result
         '''
-        filtereds, wht, yel = self.warpedChannels(filtered_dict(self.img))
-        self.init_dbg_wins(wht, yel)
+        filtereds, wht, yel = warpedChannels(filtered_dict(self.img), self)
+        self.init_side_wins(wht, yel)
 
         win_ht = self.img_ht//nwindows
         qtr_wd = self.img_wd//4
@@ -377,16 +378,16 @@ class LaneDetect:
                     prvx_mean[side] = x_mean[side]
                 
                 # Draw the windows on the visualization image
-                draw.rect(self.dbg_wins[0], 
+                draw.rect(self.side_wins[0], 
                     ((wb.x0[side],wb.y0), (wb.x1[side],wb.y1)), (0,255,side*255))  
-                draw.rect(self.dbg_wins[1], 
+                draw.rect(self.side_wins[1], 
                     ((wb.x0[side],wb.y0), (wb.x1[side],wb.y1)), (0,255,side*255)) 
-                self.dbg_wins[2][px.y[side], px.x[side], 2] = 255
+                self.side_wins[2][px.y[side], px.x[side], 2] = 255
 
                 if px.found[side]:
                     txt = '%d'%x_mean[side]
                     txtpos = x_mean[side]-130 if len(txt)==3 else x_mean[side]-175
-                    cv2.putText(self.dbg_wins[2], txt, (txtpos, wb.y0+win_ht-13), 
+                    cv2.putText(self.side_wins[2], txt, (txtpos, wb.y0+win_ht-13), 
                         font, fontsize, (0,255,255), txtwd, linetype)
             
                 # decide window centers based on previous windows 
@@ -410,8 +411,8 @@ class LaneDetect:
                 pxs.y[side] = None
         self.pxs = pxs
 
-    def plot_curve(self, coef, poly_order=2):
-        ''' Returns fitted lane lines image 
+    def output_image(self, coef, poly_order=2):
+        ''' Returns image with fitted lane lines poly-filled 
         '''
         img = self.img
         _0toHt = np.linspace(0, self.img_ht-1, self.img_ht)

@@ -5,6 +5,7 @@ from types import SimpleNamespace as SNS
 from lib.lane_detection import *
 from lib.camera import undistort
 
+
 linNorm = np.linalg.norm
 
 ymppx = 30/720  # meters per px in y dimension (lane ~30 meters long, 720=ht)
@@ -15,6 +16,8 @@ _0_to_ht = np.linspace(0, img_ht-1, img_ht) # ary of [0,1,..,ht-1]
 MA_len = 7 # moving avg period
 
 class Line:
+    ''' Line fit for one lane line
+    '''
     def __init__(self):
         self.fit = None 
         self.fits = [] 
@@ -34,13 +37,9 @@ class Line:
         if coef is None:
             coef = self.coef_MA
         y = img_ht-1
+        ## curve radius formula: (1 + (2Ay+B)^2 )^1.5 / abs(2A)
         self.curve_rad = ((1 + (2*coef[0]*y*ymppx + coef[1])**2)**1.5) / np.absolute(2*coef[0])
-        # curve radius = (1 + (2Ay+B)^2 )^1.5 / abs(2A)
-
-        dist = -img_wd/2
-        for i in range(poly_order+1):
-            dist += coef[i]*img_ht**(poly_order-i)
-        self.center = dist * xmppx
+        self.center = coef[0]*(y**2) + coef[1]*y + coef[2]
 
     def set_all(self, set_center_and_curve_radius=True):
         if len(self.coefs) >= self.MA_len:
@@ -61,9 +60,10 @@ class Line:
         self.fit = 0 # self.fit will be a list of len of coef[i] after += below
                      # 0 is the init vals for list
         
+        ## loop produces formula: Ay^2 +By + C
         for i in range(poly_order):
             self.fit += coef[i] * _0_to_ht**(poly_order-i)
-            # coef is highest power first, so poly_order-i to match coef order
+            ## coef is highest power first, so poly_order-i to match coef order
         self.fit += coef[poly_order] # one more += for _0_to_ht**0
         self.coef = coef
 
@@ -80,22 +80,20 @@ class Line:
 _max = SNS(
     fitdiff= 1700, # poor left lane fit if < 1700 on project vid @38sec
     fit_err= 80,
-    centr_dif= 800*xmppx, # lane center difference in meters
-    curvature= 1400,
-    # curvature= 1500,
     fail= 2,
 )
-_min_centr_dif = 500*xmppx
 
-def bad_curvature(a, b):
-    return False if max(abs(a), abs(b)) > _max.curvature else a*b < 0
-
-def bad_fit(fit1, fit2, radius1, radius2):
-    fit1 = np.array(fit1)
-    fit2 = np.array(fit2)
-    fit_vs_MA = fit1-fit2
-    min_fits = np.minimum(np.absolute(fit1), np.absolute(fit2)) 
-    return linNorm(fit_vs_MA[:2]/min_fits[:2]) * 2000/(abs(radius1)+abs(radius2)) > 10
+def bad_fit_diff(lf_coef, rt_coef, lf_radius, rt_radius, min_radm=1000):
+    ''' Returns if the difference between coefs of left and right fits are more 
+        than an order of magnitude than expected.
+    min_radm: Min expected radius in meters. Adjust to actual min of road radius.
+    ''' 
+    lf_coef = np.array(lf_coef)
+    rt_coef = np.array(rt_coef)
+    fitdiff = lf_coef-rt_coef
+    min_of_2 = np.minimum(np.absolute(lf_coef), np.absolute(rt_coef)) 
+    expected = (min_radm * 2)/(abs(lf_radius)+abs(rt_radius))
+    return linNorm(fitdiff[:2]/min_of_2[:2]) * expected > 10
 
 def fitMsg(fit_vs_MA, fit_err):
     if fit_vs_MA > _max.fitdiff and fit_err > _max.fit_err:
@@ -110,7 +108,9 @@ def fitMsg(fit_vs_MA, fit_err):
 line = [Line(), Line()]
 fail_detect = [2, 2]
 
-def pipeline(_img):
+def process_image(_img):
+    ''' Detection pipeline for image in video using L/R lines and LaneDetect obj.
+    '''
     img = undistort(_img)
     detect = LaneDetect(img)
     main_img = np.zeros_like(img).astype(np.uint8)
@@ -135,21 +135,19 @@ def pipeline(_img):
             fail_detect[side] += 1
             line[side].found = False
 
-    badCurve = bad_curvature(line[L].curve_rad, line[R].curve_rad)
-    badFit = bad_fit(line[L].coef, line[R].coef, line[L].curve_rad, line[R].curve_rad)
-    badCenter = not _min_centr_dif <= abs(line[L].center - line[R].center) <= _max.centr_dif
+    badFit = bad_fit_diff(line[L].coef, line[R].coef, line[L].curve_rad, line[R].curve_rad)
 
     for side in LR:
         fit_vs_MA = line[side].fit_vs_MA()
         fit_err = line[side].fit_err
 
-        if badCurve or badFit or badCenter:
+        if badFit:
             if fit_vs_MA > _max.fitdiff or fit_err > _max.fit_err:
-                if detect.found(side): # fail_detect +1 above already if not found
+                if detect.found(side): # +1 already above if not found, so +1 if found here
                     fail_detect[side] += 1
         else:
             if fit_err > _max.fit_err:
-                if detect.found(side): # +1 already if not found
+                if detect.found(side): # +1 already above if not found, so +1 if found here
                     fail_detect[side] += 1
             elif line[side].found and fit_vs_MA < _max.fitdiff:
                 fail_detect[side] = 0
@@ -160,12 +158,13 @@ def pipeline(_img):
 
         for fit,thick in [(line[side].fit_MA, 10), (line[side].fit, 3)]:
             pts = np.array(np.vstack((fit, _0_to_ht)).T, dtype=np.int32).reshape((-1,1,2))
-            cv2.polylines(detect.dbg_wins[2], [pts], False, (0,255,0), thickness=thick)
+            cv2.polylines(detect.side_wins[2], [pts], False, (0,255,0), thickness=thick)
         
         line[side].set_center_and_curve_radius()
 
+    ## calculate road radius and off center of vehicle from the 2 line values
     radm = (line[L].curve_rad + line[R].curve_rad)/2
-    offcenter = xmppx*(line[L].center + line[R].center)/2
+    offcenter = (img_wd/2 - (line[L].center + line[R].center)/2) * xmppx
 
-    out = detect.plot_curve(coef)
-    return draw.with_debug_wins(out, detect.dbg_wins, offcenter, radm, fitmsg, detectmsg)
+    out = detect.output_image(coef)
+    return draw.with_debug_wins(out, detect.side_wins, offcenter, radm, fitmsg, detectmsg)
