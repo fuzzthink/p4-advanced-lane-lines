@@ -1,5 +1,7 @@
 import cv2
 import numpy as np
+# import image output fns from fe so all drawers can be exported from here
+from lib.feature_extraction import hog_vis 
 
 
 font = cv2.FONT_HERSHEY_SIMPLEX
