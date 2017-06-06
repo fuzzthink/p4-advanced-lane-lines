@@ -15,9 +15,9 @@ The goals of this [project](https://github.com/udacity/CarND-Advanced-Lane-Lines
 
 [img1]: assets/calibration2.jpg
 [img2]: assets/calibration1_undistorted.jpg
-[img3]: camera_cal/calibration1.jpg
+[img3]: assets/calibration1.jpg
 [img4]: assets/test1_out.jpg
-[img5]: test_images/test1.jpg
+[img5]: assets/test1.jpg
 [img6]: assets/straight_lines1-unwarped.jpg
 [img7]: assets/straight_lines1-unwarp-drawn.jpg
 [img8]: assets/straight_lines1-warped-drawn.jpg
