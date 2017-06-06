@@ -26,17 +26,20 @@ The goals of this [project](https://github.com/udacity/CarND-Advanced-Lane-Lines
 
 ---
 ### Source Files 
+
 The python source files:
 
 - `lib/calibrate.py` - calibrate camera from images and save calibration matrix and distortion coefficients to `camera_cal.json`
 - `lib/camera.py` - calibrated camera interface 
 - `lib/np_util.py` - utils
+- `lib/draw.py` - drawing functions
 - `lib/lane_detection.py` - lane detection
 - `lib/line_fit.py` - line fit and detection pipeline
 - `test_camera.py` - write images from running `undistort` from `camera.py` to calibration images
 - `run.py` - process video by running `process_image` from `line_fit.py` for each image in video if video is provided, otherwise run `process_image` and detection function outputs on test images.
 
 The image paths:
+
 - `camera_cal/` - chessboard images to calibrate camera.
 - `output_images/calib_corners/` - corners drawn on chessboard images using calibrated camera matrix
 - `output_images/test_images/` - undistorted images using calibrated camera matrix on test images
