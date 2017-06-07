@@ -57,31 +57,26 @@ These image corner coordinates are mapped to their corresponding real world coor
 
 Here is a sample output of corners detected and drawn:
 
+*Chessboard Corners Drawn*
 ![][img1]
-
-*Fig 1. Chessboard Corners Drawn*
 
 Here is a different chessboard image after applying `cv2.undistort` function with the obtained camera calibration matrix and distortion coefficients: 
 
+*Undistorted Chessboard Image*
 ![][img2]
-
-*Fig 2. Undistorted Chessboard Image*
 
 Here is the original distorted image for comparison.
 
+*Distorted Chessboard Input Image*
 ![][img3]
-
-*Fig 3. Distorted Chessboard Input Image*
 
 Here is the undistortion applied to a road image.
 
+*Sample undistorted lane image*
 ![][img4]
 
-*Fig 4. Sample undistorted lane image*
-
+*Original distorted lane image*
 ![][img5]
-
-*Fig 5. Original distorted lane image*
 
 
 ---
@@ -93,9 +88,8 @@ The yellow lines are identified using a combination of H and S channels of HSV c
 
 The white lines are identified using a combination of V and S channels of HSC color space and positive and negative Sobel edges.
 
+*Sample unwarped lane line pixels image*
 ![][img6]
-
-*Fig 6. Sample unwarped lane line pixels image*
 
 
 ---
@@ -114,13 +108,11 @@ The code for perspective transform is in `roi_warper()` in `lane_detection.py`. 
 
 To verified that the perspective transform work as expected, `src` and `dst` points are drawn onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
+*Sample unwarped image with source points drawn*
 ![][img7]
 
-*Fig 7. Sample unwarped image with source points drawn*
-
+*Sample warped image with dest points drawn*
 ![][img8]
-
-*Fig 8. Sample warped image with dest points drawn*
 
 
 ---
@@ -132,21 +124,18 @@ The pixels are fitted to the polynomial equation Ay^2 +By + C.
 
 The curvature radius and center of individual lane lines are calculated in `set_center_and_curve_radius()` in `line_fit.py`. It implements the formula (1 + (2Ay+B)^2 )^1.5 / abs(2A).
 
+*Sample pipeline output image with lane lines identified*
 ![][img9]
-
-*Fig 8. Sample pipeline output image with lane lines identified*
 
 
 ---
 ### Output Videos
 
+#### Project Video Output
 [![](assets/project-out-preview720.png)](https://youtu.be/JcuaSM8Fecc "Advanced Lane Line Detection Project Output (Udacity sdcnd P4)")
 
-*Project Video Output*
-
+#### Challenge Video Output
 [![](assets/challenge-out-preview720.png)](https://youtu.be/HdnMCPZ0xb4 "Advanced Lane Line Detection Challenge Output(Udacity sdcnd P4)")
-
-*Challenge Video Output*
 
 ---
 ### How to run
