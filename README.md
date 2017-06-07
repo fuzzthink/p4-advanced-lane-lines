@@ -140,11 +140,11 @@ The curvature radius and center of individual lane lines are calculated in `set_
 ---
 ### Output Videos
 
-[![](assets/project-out-preview720.jpg)](https://youtu.be/JcuaSM8Fecc "Advanced Lane Line Detection Project Output (Udacity sdcnd P4)")
+[![](assets/project-out-preview720.png)](https://youtu.be/JcuaSM8Fecc "Advanced Lane Line Detection Project Output (Udacity sdcnd P4)")
 
 *Project Video Output*
 
-[![](assets/challenge-out-preview720.jpg)](https://youtu.be/HdnMCPZ0xb4 "Advanced Lane Line Detection Challenge Output(Udacity sdcnd P4)")
+[![](assets/challenge-out-preview720.png)](https://youtu.be/HdnMCPZ0xb4 "Advanced Lane Line Detection Challenge Output(Udacity sdcnd P4)")
 
 *Challenge Video Output*
 
